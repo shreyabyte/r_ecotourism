@@ -6,13 +6,11 @@ Contributions and test submissions for the GSoC 2026 project:
 
 ## Repository Structure
 
-easy_task - Tutorial questions practicing joins across 
-
-             occurrence, weather and tourism data
+easy_task - Tutorial questions practising joins across occurrence, weather and tourism data
 
 ## Tests Status
 
-- (done) Easy - Glowworms in Tasmanina tutorial (joining occurrence + weather + tourism)
+- (done) Easy - Glowworms in Tasmania tutorial (joining occurrence + weather + tourism)
 
 - (wip) Medium - Shiny app
 
