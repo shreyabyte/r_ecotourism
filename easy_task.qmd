@@ -1,0 +1,327 @@
+---
+title: "Ecotourism Tutorial"
+subtitle: "Joining Occurrence, Tourism and Weather Data- Are Glowworm sightings driven by tourism?"
+author: "Shreya Gupta"
+format: 
+    html:
+        embed-resources: true
+        code-fold: true
+        code-tools: true
+        toc: true
+        theme: cosmo
+editor: visual
+---
+
+```{r}
+#| label: setup
+#| message: false
+#| warning: false
+#| echo: false
+
+library(ecotourism)
+library(tidyverse)
+library(plotly)
+library(DT)
+library(leaflet)
+```
+
+## Objectives
+
+In this tutorial you will investigate whether glowworm sightings
+in Tasmania are driven by tourist activity or local hobbyists.
+
+By the end you should be able to:
+
+- Filter occurrence records by state and month
+- Join occurrence data to weather using `ws_id` and `data`
+- Join occurrence data to tourism data via `tourism_region`
+- Interpret whether tourism and sightings move together over time
+
+## Preparation
+
+Install the package if you haven't already:
+
+```{r}
+#| eval: false
+
+install.packages("pak")
+pak::pak("vahdatjavad/ecotourism")
+```
+
+We will use four datasets from the `ecotourism` package:
+
+-   `glowworms`: glowworm occurrence records (2014–2024)
+-   `weather`: daily weather by station
+-   `tourism_quarterly`: quarterly domestic visitor counts by region
+-   `tourism_region`: tourism region names linked to weather stations
+
+## Exercises
+
+We focus on **glowworm** sightings in **Tasmania** across all years, investigating whether sightings and tourism activity move together.
+
+### Explore the data first
+
+Explore the table above to get familiar with the data. Notice the `hour`, `date`, and `ws_id` columns which we will use for joining later.
+
+```{r}
+#| label: preview-table
+#| echo: false
+# filters to Tasmania glowworms only
+tas_glow <- glowworms |>
+  filter(obs_state == "Tasmania")
+
+# shows interactive scrollable table (DT package)
+datatable(
+  tas_glow |> select(date, month, hour, obs_lat, obs_lon, sci_name, ws_id),
+  options = list(pageLength = 8),
+  caption = "Tasmania Glowworm Sightings (2014-2024)"
+)
+```
+
+The map below shows all Tasmanian glowworm sightings from 2014–2024. Each gold dot represents a recorded sighting. Click any marker for date and time details.
+
+```{r}
+#| label: preview-map
+#| echo: false
+# removes any rows where coordinates are missing
+tas_map <- tas_glow |>
+  filter(!is.na(obs_lon), !is.na(obs_lat))
+
+# builds leaflet map and addTiles() adds the base map
+# addCircleMarkers plots each sighting as a dot
+leaflet(tas_map) |>
+  addTiles() |>
+  addCircleMarkers(
+    lng = ~obs_lon,      
+    lat = ~obs_lat,      
+    radius = 6.5,          
+    color = "coral",  
+    fillColor =  "orange",
+    fillOpacity=0.7,
+    weight=1,
+    popup = ~paste0(     # click a dot to see details
+      "Date: ", date,
+      "<br>Time: ", time,
+      "<br>Species: ", sci_name
+    )
+  )
+```
+
+### Question 1 . When are glowworms spotted?
+
+Filter the `glowworms` dataset to Tasmania in December. Join with the `weather` dataset using `ws_id` and `date`.
+
+1.  What hours of the day do most sightings occur?
+2.  What was the average temperature (`temp`) on sighting days?
+3.  Were most sightings on rainy or clear days?
+
+What does this tell you about glowworm spotting conditions?
+
+#### Solution.
+
+```{r}
+#| label: q1-solution
+#| code-fold: true
+#| warning: false
+
+# filter Tasmania December sightings
+tas_dec <- glowworms |>
+  filter(obs_state == "Tasmania", month == 12)
+
+# join with weather on both ws_id and date for exact area and day match
+tas_dec_weather <- tas_dec |>
+  left_join(weather, by = c("ws_id", "date"))
+
+# summarise key weather stats on sighting days
+tas_dec_weather |>
+  summarise(
+    n_sightings = n(),                          # total sightings
+    avg_temp = mean(temp, na.rm = TRUE),        # mean temperature
+    prop_rainy = mean(rainy, na.rm = TRUE)      # proportion rainy days
+  )
+```
+
+```{r}
+#| label: q1-plot
+#| echo: false
+#| warning: false
+
+# count sightings per hour
+hour_counts <- tas_dec |>
+  count(hour)
+
+# plotly bar chart for sightings by hour
+plot_ly(
+  hour_counts,
+  x = ~hour,          # x axis-hour
+  y = ~n,             # y axis-count
+  type = "bar",
+  marker = list(color = "indianred")
+) |>
+  layout(
+    title = "Glowworm Sightings by Hour of Day (Tasmania, December)",
+    xaxis = list(title = "Hour of Day (24hr)"),
+    yaxis = list(title = "Number of Sightings")
+  )
+```
+
+::: {.callout-note collapse="true"}
+## What do you notice?
+
+Most sightings occur in the **afternoon (3pm)** rather than at night which is rather surprising for a bioluminescent organism! This likely reflects **observer activity patterns** rather than glowworm behaviour. People visit caves and trails during daylight hours and record what they see.
+:::
+
+### Question 2 — Do sightings and tourism peak together?
+
+Using all years of Tasmania glowworm data, join `glowworms` to `tourism_region` via `ws_id`, then to `tourism_quarterly` via `region_id`.
+
+1.  Count glowworm sightings per year and quarter
+2.  Calculate average tourism trips per year and quarter
+3.  Do sightings and tourism trips rise and fall together?
+
+#### Solution.
+
+```{r}
+#| label: q2-solution
+#| code-fold: true
+#| warning: false
+
+# 1st joining glowworms to region info
+tas_region <- glowworms |>
+  filter(obs_state == "Tasmania") |>
+  left_join(tourism_region, by = "ws_id")         
+
+# 2nd join to tourism quarterly data
+tas_tourism <- tas_region |>
+  left_join(tourism_quarterly,                      # bring in trip counts
+            by = c("region_id", "ws_id")) |>
+  filter(!is.na(region))                            # drop unmatched rows
+
+# summarise sightings and trips per year and quarter
+yearly <- tas_tourism |>
+  group_by(year.x, quarter) |>                     # year.x = glowworm year
+  summarise(
+    n_sightings = n(),                              # count sightings
+    avg_trips = mean(trips, na.rm = TRUE),          # average tourism trips
+    .groups = "drop"
+  )
+
+yearly
+```
+
+```{r}
+#| label: q2-plot
+#| echo: false
+#| warning: false
+
+# plotly dual line chart -> sightings and trips over time
+plot_ly(yearly, 
+        x = ~year.x) |>
+  add_lines(y = ~n_sightings,       # sightings line
+            name = "Sightings",
+            line = list(color = "forestgreen")) |>
+  add_lines(y = ~avg_trips,         # tourism line
+            name = "Avg Trips",
+            line = list(color = "skyblue")) |>
+  layout(
+    title = "Glowworm Sightings vs Tourism Trips in Tasmania",
+    xaxis = list(title = "Year"),
+    yaxis = list(title = "Count"),
+    legend = list(x = 0.1, y = 0.9)
+  )
+```
+
+::: {.callout-note collapse="true"}
+## What do you notice?
+
+If the two lines move together, i.e, sightings spike when tourism spikes, this suggests **tourists are the ones recording glowworm sightings** rather than local hobbyists. Look for years where both dip (hint: 2020!) as extra evidence.
+:::
+
+### Question 3 — Holiday tourists or business travellers?
+
+From your joined dataset in Question 2, split the tourism data by `purpose` (Holiday vs Business).
+
+1.  Calculate the correlation between sightings and trips separately for Holiday and Business purpose
+2.  Which type of tourism correlates more strongly with glowworm sightings?
+3.  What does this suggest about **who** is recording glowworms?
+
+#### Solution.
+
+```{r}
+#| label: q3-solution
+#| code-fold: true
+#| warning: false
+
+# summarise by year, quarter AND purpose this time
+purpose_yearly <- tas_tourism |>
+  group_by(year.x, quarter, purpose) |>        # split by purpose
+  summarise(
+    n_sightings = n(),                          # sightings per group
+    avg_trips = mean(trips, na.rm = TRUE),      # trips per group
+    .groups = "drop"
+  ) |>
+  filter(!is.na(purpose))                       # drop missing purpose rows
+
+# calculate correlation for each purpose separately
+purpose_yearly |>
+  group_by(purpose) |>
+  summarise(
+    correlation = cor(                          # cor() gives correlation
+      n_sightings, 
+      avg_trips, 
+      use = "complete.obs"                      # ignore NA pairs
+    )
+  )
+```
+
+```{r}
+#| label: q3-plot
+#| echo: false
+#| warning: false
+
+# scatter plot sightings vs trips, coloured by purpose
+plot_ly(
+  purpose_yearly,
+  x = ~avg_trips,           # x-tourism trips
+  y = ~n_sightings,         # y-sightings 
+  color = ~purpose,         # colour by Holiday vs Business
+  colors = c("limegreen", "purple"),
+  type = "scatter",
+  mode = "markers",
+  marker = list(size = 8),
+  text = ~paste0(           # hover text
+    "Year: ", year.x,
+    "<br>Quarter: ", quarter,
+    "<br>Purpose: ", purpose,
+    "<br>Trips: ", round(avg_trips),
+    "<br>Sightings: ", n_sightings
+  ),
+  hoverinfo = "text"
+) |>
+  layout(
+    title = "Do Holiday or Business Tourists Record More Glowworms?",
+    xaxis = list(title = "Average Tourism Trips"),
+    yaxis = list(title = "Glowworm Sightings"),
+    legend = list(title = list(text = "Purpose"))
+  )
+```
+
+::: {.callout-important collapse="true"}
+## Key Finding
+
+If Holiday trips correlate more strongly with sightings than Business trips, this is strong evidence that **tourists on holiday are driving glowworm recordings** and not so much locals or business travellers. This has implications for the ecotourism package itself that sighting data may be biased toward tourist-heavy seasons and regions.
+:::
+
+## Finishing Up
+
+In this tutorial you investigated whether glowworm sightings in Tasmania are driven by tourist activity. You practiced:
+
+-   Joining `glowworms` -\> `tourism_region` -\>`tourism_quarterly`
+-   Joining occurrence data with `weather` using `ws_id` and `date`
+-   Interpreting correlations between sightings and tourism purpose
+
+### Want to explore further?
+
+-   Try repeating Question 2 with a different organism. Do `gouldian_finch` or `manta_rays` show the same tourism pattern?
+-    Filter Question 2 to exclude 2020. Does the correlation between tourism and sightings get stronger or weaker without the pandemic year?
+-   Filter Question 3 to only Q4 (October–December). Does the Holiday correlation get stronger in peak tourist season?
