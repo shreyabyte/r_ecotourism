@@ -6,20 +6,20 @@ Contributions and test submissions for the GSoC 2026 project:
 
 ## Repository Structure
 
-**easy_task** - Static analysis and visualization using Quarto
-**medium_task** – Interactive Shiny application  
+**easy_task** - Static analysis and visualization using Quarto <br>
+**medium_task** – Interactive Shiny application  <br>
 **hard_task**- Prediction function (work in progress)
 
 ## Tests
 
 ### Easy Task
-Glowworms in Tasmania tutorial (joining occurrence + weather + tourism data)  
+Glowworms in Tasmania tutorial (joining occurrence + weather + tourism data) <br> 
 [View Tutorial](https://shreyabyte.github.io/r_ecotourism/easy_task/)
 
 ### Medium
-Interactive Shiny app that maps organism occurrences across Australia with dynamic species selection.
-[Launch App](https://shreyabyte.shinyapps.io/medium_task/) 
+Interactive Shiny app that maps organism occurrences across Australia with dynamic species selection.<br>
+[Launch App](https://shreyabyte.shinyapps.io/medium_task/)
 
-### 🔹 Hard Task  
+### Hard Task  
 Prediction function (in progress)
 
