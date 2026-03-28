@@ -1,0 +1,588 @@
+---
+title: "Predicting the Best Times to Spot Wildlife"
+subtitle: "A scoring function for wildlife spotting opportunities in Australia"
+author: "Shreya Gupta"
+date: today
+format:
+  html:
+    embed-resources: true
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-tools: true
+    theme: cosmo
+---
+
+```{r}
+#| label: setup
+#| message: false
+#| warning: false
+#| echo: false
+
+library(ecotourism)
+library(tidyverse)
+
+# load all datasets
+data(glowworms)
+data(gouldian_finch)
+data(manta_rays)
+data(orchids)
+data(weather)
+data(top_stations)
+```
+
+## Overview
+
+The `ecotourism` package contains occurrence records for four Australian organisms alongside daily weather data from 2014–2024. A natural question for any ecotourist is:
+
+> *"When and where should I go to have the best chance of spotting this animal?"*
+
+This document develops `predict_best_times()` - a function that analyses historical sighting patterns alongside weather conditions to recommend the top five month and time-of-day combinations for spotting each organism.
+
+Rather than fitting a black-box model, the function is built on three transparent components:
+
+-   **Sighting frequency** - which months and hours have historically produced the most sightings?
+-   **Weather favourability** - what conditions were present on sighting days vs non-sighting days?
+-   **Data confidence** - how much data backs up each recommendation?
+
+Before building the function, we first explore the data carefully because raw occurrence records contain quality issues that meaningfully affect any prediction.
+
+## Data Quality
+
+Before building any predictive function, we need to understand what the data actually contains. Two issues stand out immediately.
+
+```{r}
+#| label: hour-distributions
+#| echo: true
+
+# look at hour distributions for each organism
+# this tells us when? sightings are recorded
+hour_summary <- bind_rows(
+  glowworms |> mutate(organism = "Glowworm"),
+  gouldian_finch |> mutate(organism = "Gouldian Finch"),
+  manta_rays |> mutate(organism = "Manta Ray"),
+  orchids |> mutate(organism = "Orchid")
+) |>
+  filter(!is.na(hour)) |>          # remove missing hours
+  count(organism, hour) |>         # count sightings per hour per organism
+  group_by(organism) |>
+  mutate(pct = n / sum(n) * 100)   # convert to percentage
+
+# plot hour distributions
+hour_summary |>
+  ggplot(aes(x = hour, y = pct, fill = organism)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~organism, scales = "free_y") +   # separate panel per organism
+  labs(
+    x = "Hour of Day",
+    y = "% of Sightings",
+    title = "When are sightings recorded?",
+    subtitle = "Unusual patterns reveal data quality issues"
+  ) +
+  theme_minimal(base_size = 12)
+```
+
+### Issue 1 : Machine observations at hour 0
+
+Manta rays have a large spike at hour 0 (midnight). This is not real behaviour , it reflects automated tracking devices that default to midnight when no exact timestamp is available.
+
+```{r}
+#| label: machine-obs
+
+# show the record type breakdown for manta rays
+manta_rays |>
+  group_by(record_type) |>
+  summarise(
+    n = n(),                                    # total records
+    pct_at_hour_0 = mean(hour == 0) * 100,      # % recorded at midnight
+    median_hour = median(hour, na.rm = TRUE)     # typical hour
+  )
+```
+
+### Issue 2 : The Glowworm dual peak
+
+Glowworms show something more interesting, **two distinct peaks**: one in the afternoon (around 15:00) and one in the evening (19:00–22:00).
+
+This is not a data error. It reflects two genuinely different spotting contexts:
+
+-   **Cave tourism** - organised tours where artificial darkness makes glowworms visible regardless of outside light
+-   **Wild sightings** - natural bioluminescence only visible after dark
+
+Our function will acknowledge this distinction rather than treating all sightings as equivalent.
+
+```{r}
+#| label: glowworm-dual-peak
+
+# show the two contexts in glowworm data
+glowworms |>
+  filter(!is.na(hour), hour != 0) |>
+  mutate(
+    context = case_when(
+      hour >= 19 | hour <= 4  ~ "Wild (evening/night)",   # natural sightings
+      hour >= 12 & hour <= 18 ~ "Cave tourism (daytime)", # organised tours
+      TRUE                    ~ "Morning"
+    )
+  ) |>
+  count(obs_state, context) |>     # breakdown by state and context
+  arrange(obs_state, context)
+```
+
+## The Function
+
+`predict_best_times()` takes an occurrence dataset and weather data and returns the top five month × time-of-day combinations for spotting an organism.
+
+### How it works
+
+The function combines three scores for every possible month × hour combination:
+
+1.  **Frequency score** - how often has this month + hour produced sightings historically? (40% weight)
+2.  **Weather score** - how similar are typical conditions in this month to conditions on actual sighting days? (20% weight)
+3.  **Confidence score** - how much data backs this recommendation? Honest about sparse cells. (40% weight)
+
+These combine into a **final score** between 0 and 1. Higher = better time to visit.
+
+### Data cleaning inside the function
+
+Before scoring, the function automatically:
+
+-   Removes `MACHINE_OBSERVATION` records (all recorded at hour 0)
+-   Removes hour = 0 from human observations (likely missing timestamps)
+-   Separates glowworm sightings into cave vs wild context
+
+```{r}
+#| label: function-definition
+#| code-fold: true   
+
+predict_best_times <- function(occurrence_data,
+                               weather_data,
+                               organism_name,
+                               context = "all",   # "all", "cave", "wild"
+                               n = 5) {           # number of results to return
+  
+  # Step 1: Clean data
+  
+  # remove machine observations — they default to hour 0
+  occ <- occurrence_data |>
+    filter(record_type != "MACHINE_OBSERVATION")
+  
+  # remove hour 0-likely missing timestamps not genuine midnight
+  occ <- occ |>
+    filter(!is.na(hour), hour != 0)
+  
+  # for glowworms — split by context if requested
+  if (organism_name == "glowworms" && context != "all") {
+    if (context == "cave") {
+      # daytime sightings = cave tourism context
+      occ <- occ |> filter(hour >= 9, hour <= 18)
+      message("Using cave tourism context (9am-6pm sightings)")
+    } else if (context == "wild") {
+      # evening/night sightings = wild bioluminescence context
+      occ <- occ |> filter(hour >= 19 | hour <= 4)
+      message("Using wild sighting context (7pm-4am sightings)")
+    }
+  }
+  
+  #Step 2: Frequency scores
+  
+  # how often is each month recorded?
+  month_freq <- occ |>
+    count(month, name = "n_month") |>
+    mutate(month_score = n_month / sum(n_month))  # normalise to 0-1
+  
+  # how often is each hour recorded?
+  hour_freq <- occ |>
+    count(hour, name = "n_hour") |>
+    mutate(hour_score = n_hour / sum(n_hour))     # normalise to 0-1
+  
+  #Step 3: Weather favourability
+  
+  # join occurrence dates with weather
+  occ_weather <- occ |>
+    select(date, month, hour) |>
+    left_join(
+      weather_data |> select(ws_id, date, temp, rainy, wind_speed, prcp),
+      by = "date" ,                    # match by date
+      relationship = "many-to-many"    # multiple stations per date expected
+    ) |>
+    filter(!is.na(temp))                          # remove missing weather
+  
+  # what were average conditions on sighting days?
+  ideal_conditions <- occ_weather |>
+    summarise(
+      ideal_temp  = mean(temp,       na.rm = TRUE),
+      ideal_rain  = mean(rainy,      na.rm = TRUE),
+      ideal_wind  = mean(wind_speed, na.rm = TRUE)
+    )
+  
+  # score each month by how close its avg weather is to ideal
+  monthly_weather <- weather_data |>
+    group_by(month) |>
+    summarise(
+      avg_temp  = mean(temp,       na.rm = TRUE),
+      avg_rain  = mean(rainy,      na.rm = TRUE),
+      avg_wind  = mean(wind_speed, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    mutate(
+      # closeness to ideal - 1 = perfect match, 0 = very different
+      weather_score = 1 - (
+        0.5 * pmin(abs(avg_temp  - ideal_conditions$ideal_temp)  / 15, 1) +
+        0.3 * pmin(abs(avg_rain  - ideal_conditions$ideal_rain),        1) +
+        0.2 * pmin(abs(avg_wind  - ideal_conditions$ideal_wind)  / 10,  1)
+      )
+    ) |>
+    select(month, weather_score)
+  
+  #Step 4: Confidence score 
+  
+  # count sightings per month x hour cell
+  cell_counts <- occ |>
+    count(month, hour, name = "n_cell")
+  
+  #Step 5: Build full grid and score
+  
+  # all possible month x hour combinations
+  grid <- expand.grid(month = 1:12, hour = 1:23)
+  
+  results <- grid |>
+    left_join(month_freq,      by = "month") |>
+    left_join(monthly_weather, by = "month") |>
+    left_join(hour_freq,       by = "hour")  |>
+    left_join(cell_counts,     by = c("month", "hour")) |>
+    replace_na(list(                              # cells with no data = 0
+      month_score   = 0,
+      weather_score = 0.5,
+      hour_score    = 0,
+      n_cell        = 0
+    )) |>
+    mutate(
+      # composite score — weighted average
+      composite = 0.40 * month_score +
+                  0.20 * weather_score +
+                  0.40 * hour_score,
+      
+      # confidence - exponential curve
+      # 1 sighting = 0.18, 5 = 0.63, 10 = 0.86
+      confidence = 1 - exp(-n_cell / 5),
+      
+      # final score - composite scaled by confidence
+      final_score = composite * confidence,
+      
+      # readable labels
+      month_name = month.name[month],
+      time_label = sprintf("%02d:00", hour),
+      period = case_when(
+        hour < 12 ~ "Morning",
+        hour < 17 ~ "Afternoon",
+        TRUE      ~ "Evening/Night"
+      ),
+      
+      # plain english confidence label
+      confidence_label = case_when(
+        confidence >= 0.63 ~ "High",
+        confidence >= 0.18 ~ "Moderate",
+        TRUE               ~ "Low"
+      )
+    ) |>
+    arrange(desc(final_score)) |>
+    slice_head(n = n) |>                          # top n results
+    select(month_name, time_label, period,
+           final_score, confidence, confidence_label, n_cell)
+  
+  results
+}
+```
+
+## Results
+
+We now apply `predict_best_times()` to each of the four organisms and interpret what the predictions tell us ecologically.
+
+### Glowworms
+
+Glowworms show two distinct spotting contexts. We run the function twice, once for each context: to show how recommendations differ.
+
+```{r}
+#| label: results-glowworms
+#| message: false
+#| warning: false
+
+glow_all <- predict_best_times(
+  glowworms, weather, "glowworms", context = "all"
+)
+
+glow_cave <- predict_best_times(
+  glowworms, weather, "glowworms", context = "cave"
+)
+
+glow_wild <- predict_best_times(
+  glowworms, weather, "glowworms", context = "wild"
+)
+
+glow_all
+glow_cave
+glow_wild
+```
+
+#### All contexts
+
+```{r}
+#| label: results-glowworms-all
+#| message: false
+#| warning: false
+glow_all <- predict_best_times(glowworms, weather, "glowworms", context = "all")
+glow_all
+```
+
+#### Cave tourism context
+
+```{r}
+#| label: results-glowworms-cave
+#| message: false
+#| warning: false
+glow_cave <- predict_best_times(glowworms, weather, "glowworms", context = "cave")
+glow_cave
+```
+
+#### Wild sighting context
+
+```{r}
+#| label: results-glowworms-wild
+#| message: false
+#| warning: false
+glow_wild <- predict_best_times(glowworms, weather, "glowworms", context = "wild")
+glow_wild
+```
+
+The two contexts produce meaningfully different recommendations. Cave tourism sightings peak in the afternoon when organised tours run, regardless of outside light. Wild sightings peak in the evening and night, when natural bioluminescence is visible. A tourist planning a cave tour and a wildlife photographer planning a night walk would therefore benefit from different advice.
+
+### Gouldian Finch
+
+The Gouldian Finch is an endangered bird found in the Top End of Australia. During the dry season (June to October) surface water contracts and birds gather at remaining waterholes, making them easier to spot.
+
+```{r}
+#| label: results-finch
+#| message: false
+#| warning: false
+
+finch_preds <- predict_best_times(
+  gouldian_finch, weather, "gouldian_finch"
+)
+
+print(finch_preds)
+```
+
+Dry season months dominate as expected, the ecological mechanism is clear. High confidence scores reflect the richness of the Gouldian Finch dataset compared to other organisms.
+
+### Manta Rays
+
+We use only human observations and machine observations are automatically excluded by the function as they default to hour 0 and do not reflect real behaviour.
+
+```{r}
+#| label: results-manta
+#| message: false
+#| warning: false
+
+manta_preds <- predict_best_times(
+  manta_rays, weather, "manta_rays"
+)
+
+print(manta_preds)
+```
+
+Morning hours dominate which is consistent with divers and snorkellers operating during daylight. Winter months rank highest, reflecting feeding aggregations during cooler water temperatures.
+
+### Orchids
+
+Orchids represent the largest dataset with over 35,000 records. Spring months (September to November) are peak flowering season especially in Western Australia.
+
+```{r}
+#| label: results-orchids
+#| message: false
+#| warning: false
+
+orchid_preds <- predict_best_times(
+  orchids, weather, "orchids"
+)
+
+print(orchid_preds)
+```
+
+Spring months dominate with mid-morning hours when pollinators are most active. High confidence throughout reflects the data richness of the orchid dataset.
+
+## Visualising the Scoring Grid
+
+The tables above show the top 5 results but the full month × hour scoring grid reveals the complete picture which combinations score well, which score poorly, and where the data is sparse.
+
+```{r}
+#| label: full-grid-function
+#| message: false
+#| warning: false
+
+# modified version that returns full grid for visualisation
+predict_full_grid <- function(occurrence_data,
+                              weather_data,
+                              organism_name,
+                              context = "all") {
+  
+  # same cleaning as main function
+  occ <- occurrence_data |>
+    filter(record_type != "MACHINE_OBSERVATION") |>
+    filter(!is.na(hour), hour != 0)
+  
+  if (organism_name == "glowworms" && context != "all") {
+    if (context == "cave") {
+      occ <- occ |> filter(hour >= 9, hour <= 18)
+    } else if (context == "wild") {
+      occ <- occ |> filter(hour >= 19 | hour <= 4)
+    }
+  }
+  
+  month_freq <- occ |>
+    count(month, name = "n_month") |>
+    mutate(month_score = n_month / sum(n_month))
+  
+  hour_freq <- occ |>
+    count(hour, name = "n_hour") |>
+    mutate(hour_score = n_hour / sum(n_hour))
+  
+  occ_weather <- occ |>
+    select(date, month, hour) |>
+    left_join(
+      weather_data |> select(date, temp, rainy, wind_speed),
+      by = "date"
+    ) |>
+    filter(!is.na(temp))
+  
+  ideal_conditions <- occ_weather |>
+    summarise(
+      ideal_temp = mean(temp,       na.rm = TRUE),
+      ideal_rain = mean(rainy,      na.rm = TRUE),
+      ideal_wind = mean(wind_speed, na.rm = TRUE)
+    )
+  
+  monthly_weather <- weather_data |>
+    group_by(month) |>
+    summarise(
+      avg_temp = mean(temp,       na.rm = TRUE),
+      avg_rain = mean(rainy,      na.rm = TRUE),
+      avg_wind = mean(wind_speed, na.rm = TRUE),
+      .groups  = "drop"
+    ) |>
+    mutate(
+      weather_score = 1 - (
+        0.5 * pmin(abs(avg_temp - ideal_conditions$ideal_temp) / 15, 1) +
+        0.3 * pmin(abs(avg_rain - ideal_conditions$ideal_rain),       1) +
+        0.2 * pmin(abs(avg_wind - ideal_conditions$ideal_wind) / 10,  1)
+      )
+    ) |>
+    select(month, weather_score)
+  
+  cell_counts <- occ |>
+    count(month, hour, name = "n_cell")
+  
+  grid <- expand.grid(month = 1:12, hour = 1:23)
+  
+  grid |>
+    left_join(month_freq,      by = "month") |>
+    left_join(monthly_weather, by = "month") |>
+    left_join(hour_freq,       by = "hour")  |>
+    left_join(cell_counts,     by = c("month", "hour")) |>
+    replace_na(list(
+      month_score   = 0,
+      weather_score = 0.5,
+      hour_score    = 0,
+      n_cell        = 0
+    )) |>
+    mutate(
+      composite   = 0.40 * month_score +
+                    0.20 * weather_score +
+                    0.40 * hour_score,
+      confidence  = 1 - exp(-n_cell / 5),
+      final_score = composite * confidence,
+      month_name  = factor(month.abb[month], levels = month.abb)
+    )
+}
+```
+
+#### Heatmap
+
+```{r}
+#| label: heatmaps
+#| message: false
+#| warning: false
+#| fig-height: 10
+#| fig-width: 12
+
+# build full grids for all four organisms
+grids <- bind_rows(
+  predict_full_grid(glowworms,      weather, "glowworms")      |> mutate(organism = "Glowworm"),
+  predict_full_grid(gouldian_finch, weather, "gouldian_finch") |> mutate(organism = "Gouldian Finch"),
+  predict_full_grid(manta_rays,     weather, "manta_rays")     |> mutate(organism = "Manta Ray"),
+  predict_full_grid(orchids,        weather, "orchids")         |> mutate(organism = "Orchid")
+)
+
+# heatmap- x->month, y->hour, colour=final score
+grids |>
+  ggplot(aes(
+    x    = month_name,
+    y    = factor(hour),
+    fill = final_score
+  )) +
+  geom_tile(colour = "white", linewidth = 0.3) +  # white grid lines
+  scale_fill_gradient(
+    low  = "#f5f0e8",                              # light = low score
+    high = "#2C3E50",                              # dark = high score
+    name = "Score"
+  ) +
+  facet_wrap(~organism, ncol = 2) +               # 2x2 grid of organisms
+  labs(
+    x        = NULL,
+    y        = "Hour of Day",
+    title    = "Wildlife Spotting Opportunity Score",
+    subtitle = "Darker = better time to visit. White = no historical data"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid  = element_blank(),
+    legend.position = "bottom",
+    strip.text  = element_text(face = "bold")
+  )
+```
+
+## Limitations and Future Improvements
+
+No predictive function is complete without an honest account of what it cannot do. Several limitations are worth noting.
+
+### Data constraints
+
+**Observer effort is unaccounted for.** More sightings on weekends or in popular tourist months may reflect more people looking, not more animals present. The function cannot distinguish between "this organism is more active in September" and "more people go wildlife spotting in September."
+
+**Weather is historical, not forecast.** The function scores months by average historical weather conditions, not actual upcoming forecasts. Integrating a live weather API such as Open-Meteo would give more precise short-term recommendations.
+
+**Sparse data affects confidence.** Glowworms have only 124 records. Recommendations for sparse organisms should be treated as indicative rather than definitive, the confidence score communicates this honestly.
+
+### Modelling constraints
+
+**The function scores month × hour combinations independently.** It does not model interactions for example, whether warm temperatures matter more in certain months than others.
+
+**Spatial variation is ignored.** The function treats all sightings of an organism as equivalent regardless of location. A glowworm sighting in Tasmania and one in Queensland reflect very different ecological contexts as the dual-peak analysis showed.
+
+### Natural extensions
+
+These limitations point toward natural extensions that could form part of the full GSoC 2026 project scope:
+
+-   Integrate a weather forecast API for real-time recommendations
+-   Add a spatial component - recommend specific regions not just months and times
+-   Account for observer effort using visit-based occupancy models
+-   Build a zero-inflated model for sparse organisms like glowworms
+
+## Finishing Up
+
+This document developed `predict_best_times()` - a transparent, confidence-aware function for recommending wildlife spotting opportunities. The key contributions are:
+
+-   Honest confidence scoring that reflects data sparsity
+-   Automatic data cleaning for known quality issues
+-   Context-aware predictions for glowworms (cave vs wild)
+-   A visual scoring grid showing the full month × hour landscape
+
+The glowworm dual-peak finding: daytime cave tourism vs evening wild sightings - emerged directly from careful data exploration before any modelling, and produced genuinely different recommendations depending on what kind of spotting experience a visitor is planning.
