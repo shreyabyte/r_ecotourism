@@ -111,15 +111,5 @@ install.packages(c("tidyverse", "shiny", "leaflet",
 
 ---
 
-## About Me
-
-I am a data science student with experience in R and Python, 
-currently taking units in data analytics, probability and 
-statistics, and introduction to data science. I am excited 
-about contributing to the ecotourism package and building 
-tools that connect wildlife data with tourism and weather insights.
-
----
-
 *Data source: Atlas of Living Australia (2014–2024)*  
 *Package: ecotourism (GSoC 2025)*
