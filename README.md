@@ -1,9 +1,7 @@
 # GSoC 2026 - Ecotourism R Package
 
 Contributor test submissions for the GSoC 2026 project:
-**"ecotourism: update data package and create shiny app"**
-
----
+> **"ecotourism: update data package and create shiny app"**
 
 ## About the Project
 
@@ -19,13 +17,13 @@ materials, and build a Shiny app for wildlife exploration.
 
 ## Tests
 
-### Easy — Tutorial Questions
+### Easy - Tutorial
 **Are Glowworm Sightings Driven by Tourism?**
 
 A Quarto tutorial that develops three exercises practicing joins 
 across the occurrence, weather and tourism datasets. The tutorial 
 investigates whether glowworm sightings in Tasmania correlate with 
-tourist activity — and whether Holiday or Business tourists are 
+tourist activity and whether Holiday or Business tourists are 
 the ones doing the recording.
 
 - 🔗 [Live Tutorial](https://shreyabyte.github.io/r_ecotourism/easy_task/)
@@ -37,7 +35,6 @@ the ones doing the recording.
 - DT scrollable data tables
 - Callout solution blocks
 
----
 
 ### Medium - Shiny App
 **Australian Wildlife Explorer**
@@ -45,13 +42,13 @@ the ones doing the recording.
 An interactive Shiny app for exploring wildlife sightings across 
 Australia with four tabs:
 
-- **Explorer** — interactive map with organism colours, 
+- **Explorer** - interactive map with organism colours, 
   clustered/individual marker toggle, and 5 live stat cards
-- **Weather Analysis** — temperature trends, rainfall patterns 
+- **Weather Analysis** - temperature trends, rainfall patterns 
   and a temperature heatmap across organisms
-- **Trip Planner** — personalised spotting guide based on 
+- **Trip Planner** - personalised spotting guide based on 
   user preferences (organism, state, month, time of day)
-- **Trends** — sightings over time, monthly patterns, 
+- **Trends** - sightings over time, monthly patterns, 
   state breakdown and organism share over time
 
 - 🔗 [Shiny App](https://shreyabyte.shinyapps.io/medium_task/)
@@ -63,12 +60,11 @@ Australia with four tabs:
 - Personalised trip planning recommendations
 - Stacked area chart for organism trends over time
 
----
 
 ### Hard - Prediction Function
 **Predicting the Best Times to Spot Wildlife**
 
-A Quarto document developing `predict_best_times()` — a 
+A Quarto document developing `predict_best_times()`: a 
 confidence-aware scoring function that recommends the top five 
 month × time-of-day combinations for spotting each organism.
 
@@ -95,7 +91,6 @@ r_ecotourism/
 └── README.md
 ```
 
----
 
 ## Setup
 ```r
@@ -109,7 +104,6 @@ install.packages(c("tidyverse", "shiny", "leaflet",
                    "shinyWidgets"))
 ```
 
----
 
 *Data source: Atlas of Living Australia (2014–2024)*  
 *Package: ecotourism (GSoC 2025)*

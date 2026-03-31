@@ -529,17 +529,17 @@ grids |>
     fill = final_score
   )) +
   geom_tile(colour = "white", linewidth = 0.3) +  # white grid lines
-  scale_fill_gradient(
-    low  = "#f5f0e8",                              # light = low score
-    high = "#2C3E50",                              # dark = high score
-    name = "Score"
+  scale_fill_viridis_c(
+    option="magma",
+    name = "Score",
+    na.value = "#1a1a2e"
   ) +
   facet_wrap(~organism, ncol = 2) +               # 2x2 grid of organisms
   labs(
     x        = NULL,
     y        = "Hour of Day",
     title    = "Wildlife Spotting Opportunity Score",
-    subtitle = "Darker = better time to visit. White = no historical data"
+    subtitle = "Lighter/warmer = better time to visit · Dark navy = no historical data"
   ) +
   theme_minimal(base_size = 12) +
   theme(
@@ -565,24 +565,24 @@ No predictive function is complete without an honest account of what it cannot d
 
 **The function scores month × hour combinations independently.** It does not model interactions for example, whether warm temperatures matter more in certain months than others.
 
-**Spatial variation is ignored.** The function treats all sightings of an organism as equivalent regardless of location. A glowworm sighting in Tasmania and one in Queensland reflect very different ecological contexts as the dual-peak analysis showed.
+**Spatial variation is ignored.** The function treats all sightings of an organism as equivalent regardless of location. A glowworm sighting in Tasmania and one in Queensland reflect very different ecological contexts as the dual peak analysis showed.
 
 ### Natural extensions
 
 These limitations point toward natural extensions that could form part of the full GSoC 2026 project scope:
 
--   Integrate a weather forecast API for real-time recommendations
+-   Integrate a weather forecast API for real time recommendations
 -   Add a spatial component - recommend specific regions not just months and times
--   Account for observer effort using visit-based occupancy models
+-   Account for observer effort using visit based occupancy models
 -   Build a zero-inflated model for sparse organisms like glowworms
 
 ## Finishing Up
 
-This document developed `predict_best_times()` - a transparent, confidence-aware function for recommending wildlife spotting opportunities. The key contributions are:
+This document developed `predict_best_times()` - a transparent, confidence aware function for recommending wildlife spotting opportunities. The key contributions are:
 
 -   Honest confidence scoring that reflects data sparsity
 -   Automatic data cleaning for known quality issues
 -   Context-aware predictions for glowworms (cave vs wild)
 -   A visual scoring grid showing the full month × hour landscape
 
-The glowworm dual-peak finding: daytime cave tourism vs evening wild sightings - emerged directly from careful data exploration before any modelling, and produced genuinely different recommendations depending on what kind of spotting experience a visitor is planning.
+The glowworm dual-peak finding: daytime cave tourism vs evening wild sightings emerged directly from careful data exploration before any modelling, and produced genuinely different recommendations depending on what kind of spotting experience a visitor is planning.
