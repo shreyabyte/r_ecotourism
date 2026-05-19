@@ -1,7 +1,8 @@
-# GSoC 2026 - Ecotourism R Package
+# ecotourism-analytics
 
-Contributor test submissions for the GSoC 2026 project:
-> **"ecotourism: update data package and create shiny app"**
+An interactive R/Shiny analytics platform for exploring Australian wildlife sightings, tourism trends, and environmental patterns using the ecotourism dataset.
+
+Developed as part of contributor test submissions for Google Summer of Code 2026.
 
 ## About the Project
 
@@ -10,14 +11,11 @@ provides occurrence records for four Australian organisms:
 glowworms, Gouldian finches, manta rays and orchids alongside 
 daily weather data and domestic tourism statistics from 2014–2024.
 
-The GSoC 2026 project aims to update the data, develop teaching 
-materials, and build a Shiny app for wildlife exploration.
-
 ---
 
-## Tests
+## Project Components
 
-### Easy - Tutorial
+### Interactive Tutorial
 **Are Glowworm Sightings Driven by Tourism?**
 
 A Quarto tutorial that develops three exercises practicing joins 
@@ -26,8 +24,8 @@ investigates whether glowworm sightings in Tasmania correlate with
 tourist activity and whether Holiday or Business tourists are 
 the ones doing the recording.
 
-- 🔗 [Live Tutorial](https://shreyabyte.github.io/r_ecotourism/easy_task/)
-- 📁 [Source Code](https://github.com/shreyabyte/r_ecotourism/blob/master/easy_task/easy_task.qmd)
+- 🔗 [Live Tutorial](https://shreyabyte.github.io/r_ecotourism/tutorial_analysis/)
+- 📁 [Source Code](https://github.com/shreyabyte/r_ecotourism/blob/master/tutorial_analysis/tutorial.qmd)
 
 **Key features:**
 - Interactive leaflet map of glowworm sightings
@@ -36,7 +34,7 @@ the ones doing the recording.
 - Callout solution blocks
 
 
-### Medium - Shiny App
+### Wildlife Explorer Dashboard
 **Australian Wildlife Explorer**
 
 An interactive Shiny app for exploring wildlife sightings across 
@@ -52,7 +50,7 @@ Australia with four tabs:
   state breakdown and organism share over time
 
 - 🔗 [Shiny App](https://shreyabyte.shinyapps.io/medium_task/)
-- 📁 [Source Code](https://github.com/shreyabyte/r_ecotourism/blob/master/medium_task/app.R)
+- 📁 [Source Code](https://github.com/shreyabyte/r_ecotourism/blob/master/wildlife_dashboard/app.R)
 
 **Key features:**
 - Multi-tab dashboard layout
@@ -61,15 +59,15 @@ Australia with four tabs:
 - Stacked area chart for organism trends over time
 
 
-### Hard - Prediction Function
+### Wildlife Prediction System
 **Predicting the Best Times to Spot Wildlife**
 
 A Quarto document developing `predict_best_times()`: a 
 confidence-aware scoring function that recommends the top five 
 month × time-of-day combinations for spotting each organism.
 
-- 🔗 [Live Document](https://shreyabyte.github.io/r_ecotourism/hard_task/)
-- 📁 [Source Code](https://github.com/shreyabyte/r_ecotourism/blob/master/hard_task/hard_task.qmd)
+- 🔗 [Live Document](https://shreyabyte.github.io/r_ecotourism/prediction_analysis/)
+- 📁 [Source Code](https://github.com/shreyabyte/r_ecotourism/blob/master/prediction_analysis/prediction_analysis.qmd)
 
 **Key features:**
 - Automatic data cleaning (machine observations, hour = 0)
@@ -82,12 +80,12 @@ month × time-of-day combinations for spotting each organism.
 ## Repository Structure
 ```
 r_ecotourism/
-├── easy_task/
+├── wildlife_dashboard/
 │   └── tutorial.qmd        # Tutorial questions + solutions
 ├── medium_task/
 │   └── app.R               # Shiny app
-├── hard_task/
-│   └── hard_task.qmd       # Prediction function + analysis
+├── prediction_analysis/
+│   └── prediction_analysis.qmd       # Prediction function + analysis
 └── README.md
 ```
 

@@ -27,15 +27,14 @@ library(leaflet)
 
 ## Objectives
 
-In this tutorial you will investigate whether glowworm sightings
-in Tasmania are driven by tourist activity or local hobbyists.
+In this tutorial you will investigate whether glowworm sightings in Tasmania are driven by tourist activity or local hobbyists.
 
 By the end you should be able to:
 
-- Filter occurrence records by state and month
-- Join occurrence data to weather using `ws_id` and `data`
-- Join occurrence data to tourism data via `tourism_region`
-- Interpret whether tourism and sightings move together over time
+-   Filter occurrence records by state and month
+-   Join occurrence data to weather using `ws_id` and `data`
+-   Join occurrence data to tourism data via `tourism_region`
+-   Interpret whether tourism and sightings move together over time
 
 ## Preparation
 
@@ -171,7 +170,7 @@ plot_ly(
 Most sightings occur in the **afternoon (3pm)** rather than at night which is rather surprising for a bioluminescent organism! This likely reflects **observer activity patterns** rather than glowworm behaviour. People visit caves and trails during daylight hours and record what they see.
 :::
 
-### Question 2 — Do sightings and tourism peak together?
+### Question 2 . Do sightings and tourism peak together?
 
 Using all years of Tasmania glowworm data, join `glowworms` to `tourism_region` via `ws_id`, then to `tourism_quarterly` via `region_id`.
 
@@ -237,7 +236,7 @@ plot_ly(yearly,
 If the two lines move together, i.e, sightings spike when tourism spikes, this suggests **tourists are the ones recording glowworm sightings** rather than local hobbyists. Look for years where both dip (hint: 2020!) as extra evidence.
 :::
 
-### Question 3 — Holiday tourists or business travellers?
+### Question 3 . Holiday tourists or business travellers?
 
 From your joined dataset in Question 2, split the tourism data by `purpose` (Holiday vs Business).
 
@@ -323,5 +322,5 @@ In this tutorial you investigated whether glowworm sightings in Tasmania are dri
 ### Want to explore further?
 
 -   Try repeating Question 2 with a different organism. Do `gouldian_finch` or `manta_rays` show the same tourism pattern?
--    Filter Question 2 to exclude 2020. Does the correlation between tourism and sightings get stronger or weaker without the pandemic year?
+-   Filter Question 2 to exclude 2020. Does the correlation between tourism and sightings get stronger or weaker without the pandemic year?
 -   Filter Question 3 to only Q4 (October–December). Does the Holiday correlation get stronger in peak tourist season?
