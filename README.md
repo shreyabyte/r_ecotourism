@@ -4,14 +4,10 @@ An interactive R/Shiny analytics platform for exploring Australian wildlife sigh
 
 Developed as part of contributor test submissions for Google Summer of Code 2026.
 
-## About the Project
-
 The [`ecotourism`](https://github.com/numbats/ecotourism) package 
 provides occurrence records for four Australian organisms:
 glowworms, Gouldian finches, manta rays and orchids alongside 
 daily weather data and domestic tourism statistics from 2014–2024.
-
----
 
 ## Project Components
 
